@@ -1,0 +1,65 @@
+---
+- name: Skapa och konfigurera VM med IIS och en webbplats
+  hosts: hyperv_host
+  tasks:
+
+    # Steg 1: Skapa en ny virtuell maskin i Hyper-V
+    - name: Skapa en virtuell maskin i Hyper-V
+      community.windows.win_hyperv:
+        name: iis-webserver
+        state: present
+        generation: 2
+        memory_mb: 2048
+        vcpu_count: 2
+        new_vhd_size: 20GB
+        switch_name: "Default Switch"
+        boot_device: VHD
+        secure_boot: false
+        vhd_path: C:\Hyper-V\iis-webserver.vhdx
+      register: vm_creation
+
+    - name: Starta den virtuella maskinen
+      community.windows.win_hyperv:
+        name: iis-webserver
+        state: running
+      when: vm_creation.changed
+
+    # Steg 2: Installera IIS på den nya VM:n
+    - name: Installera IIS
+      ansible.windows.win_feature:
+        name: Web-Server
+        state: present
+      vars:
+        ansible_host: "{{ hyperv_host_ip }}"
+        ansible_user: "{{ vm_admin_user }}"
+        ansible_password: "{{ vm_admin_password }}"
+        ansible_connection: winrm
+
+    # Steg 3: Kopiera projektfiler till IIS-webbplatsen
+    - name: Kopiera projektfiler till IIS
+      ansible.windows.win_copy:
+        src: /path/to/local/project_files/
+        dest: C:\inetpub\wwwroot\
+      vars:
+        ansible_host: "{{ hyperv_host_ip }}"
+        ansible_user: "{{ vm_admin_user }}"
+        ansible_password: "{{ vm_admin_password }}"
+        ansible_connection: winrm
+
+    # Steg 4: Kontrollera att IIS-tjänsten är igång
+    - name: Kontrollera att IIS-tjänsten är igång
+      ansible.windows.win_service:
+        name: W3SVC
+        state: started
+
+    # Steg 5: Kontrollera att webbsidan är åtkomlig
+    - name: Kontrollera att IIS-webbsidan är åtkomlig
+      ansible.builtin.uri:
+        url: "http://{{ hyperv_vm_ip }}"
+        status_code: 200
+      register: web_check
+
+    - name: Skriv ut resultatet av webbsidans kontroll
+      ansible.builtin.debug:
+        msg: "Webbsidan är åtkomlig och returnerar status {{ web_check.status }}"
+      when: web_check.status == 200
