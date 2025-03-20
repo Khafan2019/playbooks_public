@@ -1,0 +1,24 @@
+---
+- name: Install IIS and deploy a website
+  hosts: windows_server
+  tasks:
+    - name: Install IIS
+      win_feature:
+        name: Web-Server
+        state: present
+      become: yes
+
+    - name: Create a directory for the website
+      win_file:
+        path: C:\inetpub\wwwroot\custom_site
+        state: directory
+
+    - name: Deploy the HTML file from Jinja2 template
+      win_template:
+        src: templates/website.html.j2
+        dest: C:\inetpub\wwwroot\custom_site\index.html
+
+    - name: Ensure website is running
+      win_shell: |
+        Import-Module WebAdministration
+        New-Website -Name "CustomSite" -PhysicalPath "C:\inetpub\wwwroot\custom_site" -Port 8080
