@@ -7,6 +7,7 @@
         name: Web-Server
         state: present
       become: yes
+      notify: Restart IIS
 
     - name: Create a directory for the website
       win_file:
@@ -17,8 +18,17 @@
       win_template:
         src: templates/website.html.j2
         dest: C:\inetpub\wwwroot\custom_site\index.html
+      notify: Restart IIS
 
     - name: Ensure website is running
       win_shell: |
         Import-Module WebAdministration
-        New-Website -Name "CustomSite" -PhysicalPath "C:\inetpub\wwwroot\custom_site" -Port 8080
+        if (!(Get-Website | Where-Object { $_.Name -eq "CustomSite" })) {
+            New-Website -Name "CustomSite" -PhysicalPath "C:\inetpub\wwwroot\custom_site" -Port 8080
+        }
+
+  handlers:
+    - name: Restart IIS
+      win_shell: |
+        Import-Module WebAdministration
+        Restart-WebAppPool -Name "DefaultAppPool"
